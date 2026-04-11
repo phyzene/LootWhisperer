@@ -20,6 +20,7 @@ local rows = {}
 -------------------------------------------------------------------------------
 local defaults = {
     minimumQuality = 2, -- Green and above
+    onlyUsable = false, -- Only show items usable by the player's class/spec
 }
 
 -------------------------------------------------------------------------------
@@ -294,6 +295,18 @@ local function ProcessLootEntry(playerName, itemLink)
         return
     end
 
+    -- Filter: only show items the player can actually use/equip
+    if LootWhispererDB.onlyUsable then
+        if C_Item.IsEquippableItem(itemLink) then
+            local _, _, classID = UnitClass("player")
+            local specIndex = GetSpecialization()
+            local specID = specIndex and GetSpecializationInfo(specIndex) or 0
+            if not C_Item.DoesItemContainSpec(itemLink, classID, specID) then
+                return
+            end
+        end
+    end
+
     local playerClass = GetUnitClass(playerName)
     local entry = {
         playerName = playerName,
@@ -335,6 +348,7 @@ function LW:OnInitialize()
 
     BuildPatterns()
     CreateMainFrame()
+    self:InitConfig()
 
     self:RegisterChatCommand("lw", "SlashCommand")
     self:RegisterChatCommand("lootwhisperer", "SlashCommand")
@@ -382,12 +396,8 @@ function LW:SlashCommand(input)
         wipe(lootEntries)
         self:RefreshDisplay()
         self:Print("Loot history cleared.")
-    elseif cmd == "quality" then
-        self:Print(("Minimum quality: %d (0=Poor, 1=Common, 2=Uncommon, 3=Rare, 4=Epic)"):format(LootWhispererDB.minimumQuality))
-    elseif cmd:match("^quality%s+%d$") then
-        local q = tonumber(cmd:match("quality%s+(%d)"))
-        LootWhispererDB.minimumQuality = q
-        self:Print(("Minimum quality set to %d."):format(q))
+    elseif cmd == "config" or cmd == "options" then
+        Settings.OpenToCategory(ns.settingsCategory:GetID())
     elseif cmd == "test" then
         self:InjectTestData()
     else
@@ -395,7 +405,7 @@ function LW:SlashCommand(input)
         self:Print("  /lw show - Show the loot frame")
         self:Print("  /lw hide - Hide the loot frame")
         self:Print("  /lw clear - Clear loot history")
-        self:Print("  /lw quality [0-4] - Set/view minimum item quality")
+        self:Print("  /lw config - Open settings panel")
         self:Print("  /lw test - Add sample entries for testing")
     end
 end
@@ -403,13 +413,22 @@ end
 -------------------------------------------------------------------------------
 -- Test data
 -------------------------------------------------------------------------------
+-- Current tier Voidspire raid loot. Mix of armor types and weapons
+-- so the "only usable" filter has something to show and something to hide.
 local TEST_ITEMS = {
-    -- { itemID, fakePlayer, fakeClass }
-    { 19019,  "Thunderfury",  "WARRIOR" },   -- Thunderfury, Blessed Blade of the Windseeker (BoE legendary)
-    { 21563,  "Healbot",      "PRIEST" },    -- Don Rodrigo's Band (BoE epic ring)
-    { 14551,  "Sneakstab",    "ROGUE" },     -- Edgemaster's Handguards (BoE epic)
-    { 18803,  "Frostmage",    "MAGE" },      -- Finkle's Lava Dredger (BoE epic)
-    { 2589,   "Bankalt",      "WARLOCK" },   -- Linen Cloth (no bind, common trade good)
+    -- Leather (Rogue usable)
+    { 249306, "Sneakstab",    "ROGUE" },     -- Devouring Night's Visage (Leather Head)
+    { 249312, "Shadowdancer", "MONK" },      -- Nightblade's Pantaloons (Leather Legs)
+    { 249314, "Feralclaw",    "DRUID" },     -- Twisted Twilight Sash (Leather Waist)
+    -- Weapons (mixed usability)
+    { 249298, "Stabsworth",   "ROGUE" },     -- Tormentor's Bladed Fists (Fist Weapon)
+    { 249287, "Healbot",      "SHAMAN" },    -- Clutchmates' Caress (1H Mace)
+    { 249281, "Tankadin",     "PALADIN" },   -- Blade of the Final Twilight (1H Sword)
+    -- Plate (not Rogue usable)
+    { 249311, "Shieldwall",   "WARRIOR" },   -- Lightblood Greaves (Plate Legs)
+    { 249313, "Crusader",     "PALADIN" },   -- Light-Judged Spaulders (Plate Shoulder)
+    -- Cloth (not Rogue usable)
+    { 249315, "Frostmage",    "MAGE" },      -- Voracious Wristwraps (Cloth Wrist)
 }
 
 function LW:InjectTestData()
@@ -417,40 +436,74 @@ function LW:InjectTestData()
         frame:Show()
     end
 
-    local pending = 0
     for _, testItem in ipairs(TEST_ITEMS) do
         local itemID, playerName, playerClass = testItem[1], testItem[2], testItem[3]
-        local itemName, itemLink, itemQuality, _, _, _, _, _, _, itemTexture = C_Item.GetItemInfo(itemID)
+
+        -- Build an item link string so ProcessLootEntry can parse and filter it
+        local itemLink = "item:" .. itemID
+        local itemName = C_Item.GetItemInfo(itemLink)
 
         if itemName then
-            lootEntries[#lootEntries + 1] = {
-                playerName = playerName,
-                itemLink = itemLink,
-                itemTexture = itemTexture,
-                itemQuality = itemQuality,
-                coloredName = ClassColoredName(playerName, playerClass),
-                timestamp = time(),
-            }
+            -- Item is cached, process immediately through the real pipeline
+            -- We temporarily override GetUnitClass to return our fake class
+            local origClass = playerClass
+            local entry = self:BuildTestEntry(playerName, origClass, itemLink)
+            if entry then
+                lootEntries[#lootEntries + 1] = entry
+                while #lootEntries > MAX_ENTRIES do
+                    table.remove(lootEntries, 1)
+                end
+            end
         else
-            -- Item not cached yet, request it and retry after a short delay
-            pending = pending + 1
+            -- Not cached yet, request and retry
             C_Timer.After(1.5, function()
-                local name, link, quality, _, _, _, _, _, _, texture = C_Item.GetItemInfo(itemID)
-                if name then
-                    lootEntries[#lootEntries + 1] = {
-                        playerName = playerName,
-                        itemLink = link,
-                        itemTexture = texture,
-                        itemQuality = quality,
-                        coloredName = ClassColoredName(playerName, playerClass),
-                        timestamp = time(),
-                    }
-                    self:RefreshDisplay()
+                local entry = self:BuildTestEntry(playerName, playerClass, itemLink)
+                if entry then
+                    lootEntries[#lootEntries + 1] = entry
+                    while #lootEntries > MAX_ENTRIES do
+                        table.remove(lootEntries, 1)
+                    end
+                    if frame:IsShown() then
+                        self:RefreshDisplay()
+                    end
                 end
             end)
         end
     end
 
     self:RefreshDisplay()
-    self:Print("Injected test loot entries. Some may appear after a moment if items need caching.")
+    self:Print("Injected test loot entries (filters applied). Some may appear after a moment if items need caching.")
+end
+
+-- Builds a loot entry for test data. Skips the bind check (raid loot is BoP
+-- but we want to exercise the UI and the "only usable" filter).
+function LW:BuildTestEntry(playerName, playerClass, itemLink)
+    local itemName, link, itemQuality, _, _, _, _, _, _, itemTexture, _, _, _, bindType =
+        C_Item.GetItemInfo(itemLink)
+
+    if not itemName then return nil end
+
+    if itemQuality < LootWhispererDB.minimumQuality then
+        return nil
+    end
+
+    if LootWhispererDB.onlyUsable then
+        if C_Item.IsEquippableItem(link) then
+            local _, _, classID = UnitClass("player")
+            local specIndex = GetSpecialization()
+            local specID = specIndex and GetSpecializationInfo(specIndex) or 0
+            if not C_Item.DoesItemContainSpec(link, classID, specID) then
+                return nil
+            end
+        end
+    end
+
+    return {
+        playerName = playerName,
+        itemLink = link,
+        itemTexture = itemTexture,
+        itemQuality = itemQuality,
+        coloredName = ClassColoredName(playerName, playerClass),
+        timestamp = time(),
+    }
 end

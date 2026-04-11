@@ -10,3 +10,4 @@
 Libs\embeds.xml
 
 Core.lua
+Config.lua
