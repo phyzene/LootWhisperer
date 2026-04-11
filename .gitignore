@@ -1,0 +1,6 @@
+# Ace3 / embedded libraries (fetched by packager via .pkgmeta)
+Libs/*
+!Libs/embeds.xml
+
+# VS Code workspace settings
+.vscode/
