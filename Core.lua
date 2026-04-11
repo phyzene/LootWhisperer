@@ -20,7 +20,6 @@ local rows = {}
 -------------------------------------------------------------------------------
 local defaults = {
     minimumQuality = 2, -- Green and above
-    showFrame = true,
 }
 
 -------------------------------------------------------------------------------
@@ -96,9 +95,8 @@ local function CreateMainFrame()
 
     frame:SetScript("OnShow", function() LW:RefreshDisplay() end)
 
-    if not LootWhispererDB.showFrame then
-        frame:Hide()
-    end
+    -- Start hidden, only show when loot comes in
+    frame:Hide()
 end
 
 local function GetOrCreateRow(index)
@@ -378,10 +376,8 @@ function LW:SlashCommand(input)
 
     if cmd == "show" then
         frame:Show()
-        LootWhispererDB.showFrame = true
     elseif cmd == "hide" then
         frame:Hide()
-        LootWhispererDB.showFrame = false
     elseif cmd == "clear" then
         wipe(lootEntries)
         self:RefreshDisplay()
@@ -419,7 +415,6 @@ local TEST_ITEMS = {
 function LW:InjectTestData()
     if not frame:IsShown() then
         frame:Show()
-        LootWhispererDB.showFrame = true
     end
 
     local pending = 0
