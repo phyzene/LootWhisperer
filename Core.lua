@@ -4,8 +4,11 @@ local LW = LibStub("AceAddon-3.0"):NewAddon(ADDON_NAME, "AceEvent-3.0", "AceCons
 ns.LW = LW
 
 -- Bind type constants (from ItemBind enum)
-local BIND_ON_ACQUIRE = 1 -- Soulbound / BoP
-local BIND_QUEST = 4
+local BIND_ON_ACQUIRE = 1       -- Soulbound / BoP
+local BIND_QUEST = 4            -- Quest item
+local BIND_TO_WOW_ACCOUNT = 7   -- Warband bound
+local BIND_TO_BNET_ACCOUNT = 8  -- Battle.net account bound
+local BIND_TO_BNET_UNTIL_EQUIP = 9 -- Warband until equipped (WuE)
 
 local MAX_ENTRIES = 50
 local ROW_HEIGHT = 32
@@ -285,8 +288,12 @@ local function ProcessLootEntry(playerName, itemLink)
         return
     end
 
-    -- Filter: skip soulbound (BoP) and quest items
-    if bindType == BIND_ON_ACQUIRE or bindType == BIND_QUEST then
+    -- Filter: skip soulbound, quest, and account/warband-bound items
+    if bindType == BIND_ON_ACQUIRE
+        or bindType == BIND_QUEST
+        or bindType == BIND_TO_WOW_ACCOUNT
+        or bindType == BIND_TO_BNET_ACCOUNT
+        or bindType == BIND_TO_BNET_UNTIL_EQUIP then
         return
     end
 

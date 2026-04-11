@@ -4,3 +4,7 @@ Libs/*
 
 # VS Code workspace settings
 .vscode/
+
+# Build output
+release/
+*.zip
