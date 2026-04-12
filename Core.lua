@@ -288,13 +288,21 @@ local function ProcessLootEntry(playerName, itemLink)
         return
     end
 
-    -- Filter: skip soulbound, quest, and account/warband-bound items
-    if bindType == BIND_ON_ACQUIRE
-        or bindType == BIND_QUEST
+    -- Filter: only skip warband/account-bound items (not tradeable to others)
+    -- and quest items. BoP items are only shown inside dungeons/raids where
+    -- the personal loot trade window may apply.
+    if bindType == BIND_QUEST
         or bindType == BIND_TO_WOW_ACCOUNT
         or bindType == BIND_TO_BNET_ACCOUNT
         or bindType == BIND_TO_BNET_UNTIL_EQUIP then
         return
+    end
+
+    if bindType == BIND_ON_ACQUIRE then
+        local _, instanceType = IsInInstance()
+        if instanceType ~= "party" and instanceType ~= "raid" then
+            return
+        end
     end
 
     -- Filter by minimum quality
