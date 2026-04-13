@@ -2,7 +2,7 @@
 ## Title: Loot Whisperer
 ## Notes: Tracks non-soulbound items looted by party/raid members. Click to whisper the looter.
 ## Author: Pz
-## Version: 0.0.1
+## Version: 0.0.2
 ## SavedVariables: LootWhispererDB
 ## OptionalDeps: Ace3
 ## IconTexture: Interface\Icons\INV_Misc_Bag_10
