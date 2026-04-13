@@ -88,6 +88,27 @@ local function CreateMainFrame()
         LW:RefreshDisplay()
     end)
 
+    -- "My class" filter checkbox
+    local usableCheck = CreateFrame("CheckButton", "LootWhispererFrameUsableCheck", frame, "UICheckButtonTemplate")
+    usableCheck:SetSize(24, 24)
+    usableCheck:SetPoint("TOPRIGHT", clearBtn, "TOPLEFT", -4, 2)
+    usableCheck:SetChecked(LootWhispererDB.onlyUsable)
+    usableCheck:SetScript("OnClick", function(self)
+        LootWhispererDB.onlyUsable = self:GetChecked()
+        LW:RefreshDisplay()
+    end)
+    usableCheck:SetScript("OnEnter", function(self)
+        GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
+        GameTooltip:SetText("My Class Only")
+        GameTooltip:AddLine("Only show items your class/spec can use.", 1, 1, 1, true)
+        GameTooltip:Show()
+    end)
+    usableCheck:SetScript("OnLeave", GameTooltip_Hide)
+
+    local usableLabel = usableCheck:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+    usableLabel:SetPoint("RIGHT", usableCheck, "LEFT", -2, 0)
+    usableLabel:SetText("My class")
+
     -- Scroll frame
     local scrollFrame = CreateFrame("ScrollFrame", nil, frame, "UIPanelScrollFrameTemplate")
     scrollFrame:SetPoint("TOPLEFT", 8, -32)
@@ -166,21 +187,27 @@ function LW:RefreshDisplay()
         row:Hide()
     end
 
-    -- Show entries (newest first)
+    -- Show entries (newest first), applying usable filter at render time
+    local displayIndex = 0
     for i = #lootEntries, 1, -1 do
-        local displayIndex = #lootEntries - i + 1
         local entry = lootEntries[i]
-        local row = GetOrCreateRow(displayIndex)
 
-        row.playerName = entry.playerName
-        row.itemLink = entry.itemLink
-        row.playerText:SetText(entry.coloredName or ShortName(entry.playerName))
-        row.itemText:SetText(entry.itemLink)
-        row.icon:SetTexture(entry.itemTexture or "Interface\\Icons\\INV_Misc_QuestionMark")
-        row:Show()
+        if LootWhispererDB.onlyUsable and not entry.isUsable then
+            -- skip non-usable entries when filter is on
+        else
+            displayIndex = displayIndex + 1
+            local row = GetOrCreateRow(displayIndex)
+
+            row.playerName = entry.playerName
+            row.itemLink = entry.itemLink
+            row.playerText:SetText(entry.coloredName or ShortName(entry.playerName))
+            row.itemText:SetText(entry.itemLink)
+            row.icon:SetTexture(entry.itemTexture or "Interface\\Icons\\INV_Misc_QuestionMark")
+            row:Show()
+        end
     end
 
-    scrollChild:SetHeight(math.max(1, #lootEntries * ROW_HEIGHT))
+    scrollChild:SetHeight(math.max(1, displayIndex * ROW_HEIGHT))
 end
 
 -------------------------------------------------------------------------------
@@ -311,14 +338,14 @@ local function ProcessLootEntry(playerName, itemLink)
     end
 
     -- Filter: only show items the player can actually use/equip
-    if LootWhispererDB.onlyUsable then
-        if C_Item.IsEquippableItem(itemLink) then
-            local _, _, classID = UnitClass("player")
-            local specIndex = GetSpecialization()
-            local specID = specIndex and GetSpecializationInfo(specIndex) or 0
-            if not C_Item.DoesItemContainSpec(itemLink, classID, specID) then
-                return
-            end
+    -- (stored on the entry so RefreshDisplay can filter at render time)
+    local isUsable = true
+    if C_Item.IsEquippableItem(itemLink) then
+        local _, _, classID = UnitClass("player")
+        local specIndex = GetSpecialization()
+        local specID = specIndex and GetSpecializationInfo(specIndex) or 0
+        if not C_Item.DoesItemContainSpec(itemLink, classID, specID) then
+            isUsable = false
         end
     end
 
@@ -328,6 +355,7 @@ local function ProcessLootEntry(playerName, itemLink)
         itemLink = itemLink,
         itemTexture = itemTexture,
         itemQuality = itemQuality,
+        isUsable = isUsable,
         coloredName = ClassColoredName(ShortName(playerName), playerClass),
         timestamp = time(),
     }
@@ -502,14 +530,13 @@ function LW:BuildTestEntry(playerName, playerClass, itemLink)
         return nil
     end
 
-    if LootWhispererDB.onlyUsable then
-        if C_Item.IsEquippableItem(link) then
-            local _, _, classID = UnitClass("player")
-            local specIndex = GetSpecialization()
-            local specID = specIndex and GetSpecializationInfo(specIndex) or 0
-            if not C_Item.DoesItemContainSpec(link, classID, specID) then
-                return nil
-            end
+    local isUsable = true
+    if C_Item.IsEquippableItem(link) then
+        local _, _, classID = UnitClass("player")
+        local specIndex = GetSpecialization()
+        local specID = specIndex and GetSpecializationInfo(specIndex) or 0
+        if not C_Item.DoesItemContainSpec(link, classID, specID) then
+            isUsable = false
         end
     end
 
@@ -518,6 +545,7 @@ function LW:BuildTestEntry(playerName, playerClass, itemLink)
         itemLink = link,
         itemTexture = itemTexture,
         itemQuality = itemQuality,
+        isUsable = isUsable,
         coloredName = ClassColoredName(playerName, playerClass),
         timestamp = time(),
     }
