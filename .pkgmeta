@@ -3,8 +3,11 @@ package-as: PzLootWhisperer
 ignore:
   - .git
   - .gitignore
+  - .github
   - .vscode
+  - package.sh
   - README.md
+  - CHANGELOG.md
 
 externals:
   Libs/LibStub:
