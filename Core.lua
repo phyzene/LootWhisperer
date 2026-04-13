@@ -24,6 +24,7 @@ local rows = {}
 local defaults = {
     minimumQuality = 2, -- Green and above
     onlyUsable = false, -- Only show items usable by the player's class/spec
+    clearOnNewInstance = true, -- Auto-clear loot list when entering a new instance
 }
 
 -------------------------------------------------------------------------------
@@ -400,6 +401,7 @@ end
 function LW:OnEnable()
     self:RegisterEvent("CHAT_MSG_LOOT")
     self:RegisterEvent("GET_ITEM_INFO_RECEIVED")
+    self:RegisterEvent("PLAYER_ENTERING_WORLD")
 end
 
 function LW:CHAT_MSG_LOOT(_, message)
@@ -422,6 +424,17 @@ function LW:GET_ITEM_INFO_RECEIVED(_, itemID, success)
             pendingItems[itemLink] = nil
             ProcessLootEntry(playerName, itemLink)
         end
+    end
+end
+
+function LW:PLAYER_ENTERING_WORLD(_, isInitialLogin, isReloadingUi)
+    if isInitialLogin or isReloadingUi then return end
+    if not LootWhispererDB.clearOnNewInstance then return end
+
+    local inInstance, instanceType = IsInInstance()
+    if inInstance and (instanceType == "party" or instanceType == "raid") then
+        wipe(lootEntries)
+        self:RefreshDisplay()
     end
 end
 

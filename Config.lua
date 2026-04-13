@@ -88,6 +88,32 @@ function LW:InitConfig()
         usableCheck:SetChecked(LootWhispererDB.onlyUsable)
     end)
 
+    yOffset = yOffset - 40
+
+    ---------------------------------------------------------------------------
+    -- Clear on new instance checkbox
+    ---------------------------------------------------------------------------
+    local clearCheck = CreateFrame("CheckButton", "LootWhispererClearInstanceCheck", panel, "InterfaceOptionsCheckButtonTemplate")
+    clearCheck:SetPoint("TOPLEFT", 16, yOffset)
+    clearCheck.Text:SetText("Clear loot list when entering a new instance")
+    clearCheck.Text:SetFontObject("GameFontHighlight")
+    clearCheck:SetScript("OnClick", function(self)
+        LootWhispererDB.clearOnNewInstance = self:GetChecked()
+    end)
+
+    local clearTooltip = "Automatically clears the loot list when you zone into a new dungeon or raid instance."
+    clearCheck:SetScript("OnEnter", function(self)
+        GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
+        GameTooltip:SetText("Clear on New Instance", 1, 1, 1)
+        GameTooltip:AddLine(clearTooltip, nil, nil, nil, true)
+        GameTooltip:Show()
+    end)
+    clearCheck:SetScript("OnLeave", GameTooltip_Hide)
+
+    panel:HookScript("OnShow", function()
+        clearCheck:SetChecked(LootWhispererDB.clearOnNewInstance)
+    end)
+
     ---------------------------------------------------------------------------
     -- Register with Blizzard Settings
     ---------------------------------------------------------------------------
